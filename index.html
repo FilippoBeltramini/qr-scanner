@@ -246,69 +246,119 @@ async function startCamera() {
   }
 }
 
+
+let framesProcessed = 0;
+
 function scanFrame(time = 0) {
   if (!scanning || !stream) return;
 
   frameId = requestAnimationFrame(scanFrame);
 
-  // Non elaboriamo tutti i fotogrammi.
-  if (time - lastFrameAt < 100) return;
+  if (time - lastFrameAt < 150) return;
   lastFrameAt = time;
 
-  const video = $('camera');
-
-  if (video.readyState < 2 ||
-      !video.videoWidth) return;
-
-  const canvas = $('canvas');
-  const scale = Math.min(
-    1,
-    800 / video.videoWidth
-  );
-
-  canvas.width = Math.round(video.videoWidth * scale);
-  canvas.height = Math.round(video.videoHeight * scale);
-
-  const ctx = canvas.getContext('2d', {
-    willReadFrequently: true
-  });
-
-  ctx.drawImage(
-    video, 0, 0,
-    canvas.width, canvas.height
-  );
-
-  const img = ctx.getImageData(
-    0, 0, canvas.width, canvas.height
-  );
-
-  const qr = jsQR(
-    img.data,
-    img.width,
-    img.height,
-    { inversionAttempts: 'dontInvert' }
-  );
-
-  if (qr && !waitingResult) {
-    const token = qr.data.trim();
-
-    if (!UUID_PATTERN.test(token)) {
+  try {
+    if (typeof jsQR !== 'function') {
+      scanning = false;
+      cancelAnimationFrame(frameId);
+      $('info').textContent =
+        'ERRORE: libreria jsQR non caricata.';
       return;
     }
 
+    const video = $('camera');
+
+    if (video.readyState < 2 ||
+        !video.videoWidth) {
+      $('info').textContent =
+        'In attesa del video...';
+      return;
+    }
+
+    const canvas = $('canvas');
+    const scale = Math.min(
+      1,
+      1280 / video.videoWidth
+    );
+
+    canvas.width = Math.round(
+      video.videoWidth * scale
+    );
+    canvas.height = Math.round(
+      video.videoHeight * scale
+    );
+
+    const ctx = canvas.getContext('2d', {
+      willReadFrequently: true
+    });
+
+    ctx.drawImage(
+      video, 0, 0,
+      canvas.width, canvas.height
+    );
+
+    const img = ctx.getImageData(
+      0, 0,
+      canvas.width,
+      canvas.height
+    );
+
+    framesProcessed++;
+
+    const qr = jsQR(
+      img.data,
+      img.width,
+      img.height,
+      { inversionAttempts: 'attemptBoth' }
+    );
+
+    if (!qr) {
+      $('info').textContent =
+        'Ricerca QR... Fotogrammi: ' +
+        framesProcessed;
+      return;
+    }
+
+    const token = qr.data.trim();
+
+    console.log('QR riconosciuto:', token);
+
+    // Blocchiamo temporaneamente la scansione
+    // per mostrare anche i codici non UUID.
     scanning = false;
     cancelAnimationFrame(frameId);
+
+    if (!UUID_PATTERN.test(token)) {
+      $('info').textContent =
+        'QR letto, ma il contenuto non è un UUID: ' +
+        token.substring(0, 100);
+
+      $('nextButton').style.display = 'block';
+      return;
+    }
+
     waitingResult = true;
 
-    $('info').textContent = 'Verifica in corso...';
+    $('info').textContent =
+      'QR riconosciuto. Verifica sul server...';
 
     window.opener.postMessage({
       app: APP,
       type: 'SCAN',
       token
     }, parentOrigin);
+
+  } catch (error) {
+    scanning = false;
+    cancelAnimationFrame(frameId);
+
+    $('info').textContent =
+      'ERRORE SCANNER: ' + error.message;
+
+    console.error(error);
   }
 }
+
 
 function showResult(data) {
   const result = $('result');
