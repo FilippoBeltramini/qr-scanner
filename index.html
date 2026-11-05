@@ -1,428 +1,278 @@
-
 <!DOCTYPE html>
 <html lang="it">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport"
-      content="width=device-width,initial-scale=1">
-<title>Scanner continuo - Evento</title>
-
-<script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
-
-<style>
-  * { box-sizing: border-box; }
-
-  body {
-    margin: 0;
-    padding: 16px;
-    background: #f1f4f8;
-    color: #202b3d;
-    font-family: Arial, sans-serif;
-  }
-
-  main {
-    max-width: 480px;
-    margin: auto;
-  }
-
-  h1 {
-    text-align: center;
-    font-size: 24px;
-  }
-
-  .card {
-    padding: 16px;
-    background: white;
-    border-radius: 15px;
-    margin: 14px 0;
-  }
-
-  .camera {
-    position: relative;
-    overflow: hidden;
-    border-radius: 12px;
-    background: #111;
-    aspect-ratio: 3 / 4;
-  }
-
-  video {
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-  }
-
-  .target {
-    position: absolute;
-    left: 12%;
-    top: 25%;
-    width: 76%;
-    height: 50%;
-    border: 3px solid #60d5a0;
-    border-radius: 16px;
-    pointer-events: none;
-  }
-
-  button {
-    width: 100%;
-    padding: 17px;
-    margin-top: 12px;
-    border: none;
-    border-radius: 10px;
-    background: #215bd7;
-    color: white;
-    font-size: 18px;
-    font-weight: bold;
-    cursor: pointer;
-  }
-
-  button:disabled {
-    opacity: .5;
-  }
-
-  #result {
-    display: none;
-    text-align: center;
-    padding: 22px;
-    border-radius: 12px;
-    margin-top: 14px;
-  }
-
-  #result h2 { margin: 0 0 12px; }
-
-  .success {
-    background: #d6f5df;
-    color: #14532d;
-  }
-
-  .warning {
-    background: #fff0bd;
-    color: #854d0e;
-  }
-
-  .error {
-    background: #ffdddd;
-    color: #991b1b;
-  }
-
-  #info {
-    text-align: center;
-    font-size: 14px;
-  }
-</style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Scanner continuo - Evento</title>
+  <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
+  <style>
+    * { box-sizing: border-box; }
+    body { margin: 0; padding: 16px; background: #f1f4f8; color: #202b3d; font-family: Arial, sans-serif; }
+    main { max-width: 480px; margin: auto; }
+    h1 { text-align: center; font-size: 24px; }
+    .card { padding: 16px; background: white; border-radius: 15px; margin: 14px 0; }
+    .camera { position: relative; overflow: hidden; border-radius: 12px; background: #111; aspect-ratio: 3 / 4; }
+    video { width: 100%; height: 100%; object-fit: cover; }
+    .target { position: absolute; left: 12%; top: 25%; width: 76%; height: 50%; border: 3px solid #60d5a0; border-radius: 16px; pointer-events: none; }
+    button { width: 100%; padding: 16px; margin-top: 12px; border: none; border-radius: 10px; background: #215bd7; color: white; font-size: 17px; font-weight: bold; cursor: pointer; }
+    button:disabled { opacity: .5; }
+    .secondary { background: #667085; }
+    #result { display: none; text-align: center; padding: 20px; border-radius: 12px; margin-top: 14px; }
+    #result h2 { margin: 0 0 12px; }
+    .success { background: #d6f5df; color: #14532d; }
+    .warning { background: #fff0bd; color: #854d0e; }
+    .error { background: #ffdddd; color: #991b1b; }
+    #info { text-align: center; font-size: 14px; white-space: pre-wrap; }
+    #diagnostic { margin-top: 12px; padding: 10px; border-radius: 8px; background: #f1f4f8; color: #40506a; font-size: 12px; white-space: pre-wrap; overflow-wrap: anywhere; }
+  </style>
 </head>
-
 <body>
 <main>
   <h1>Controllo accessi</h1>
-
   <div class="card">
     <div class="camera">
-      <video id="camera" autoplay
-             playsinline muted></video>
+      <video id="camera" autoplay playsinline muted></video>
       <div class="target"></div>
     </div>
-
     <p id="info">Collegamento in corso...</p>
-
-    <button id="startButton"
-            onclick="startCamera()" disabled>
-      Avvia fotocamera
-    </button>
-
+    <button id="startButton" onclick="startCamera()" disabled>Avvia fotocamera</button>
+    <button id="testButton" class="secondary" onclick="testBackend()" disabled>Test comunicazione Apps Script</button>
     <div id="result">
       <h2 id="resultTitle"></h2>
       <p id="resultName"></p>
       <p id="resultMessage"></p>
     </div>
-
-    <button id="nextButton"
-            onclick="nextTicket()"
-            style="display:none">
-      Prossimo biglietto
-    </button>
-
-    <button onclick="stopCamera()"
-            style="background:#667085">
-      Ferma fotocamera
-    </button>
+    <button id="nextButton" onclick="nextTicket()" style="display:none">Prossimo biglietto</button>
+    <button class="secondary" onclick="stopCamera()">Ferma fotocamera</button>
+    <div id="diagnostic" role="status">Diagnostica in attesa...</div>
   </div>
-
   <canvas id="canvas" hidden></canvas>
 </main>
 
 <script>
-const APP = 'EVENT_QR_2026';
-const $ = id => document.getElementById(id);
+  const APP = 'EVENT_QR_2026';
+  const $ = id => document.getElementById(id);
+  const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  const TEST_TOKEN = '00000000-0000-4000-8000-000000000000';
 
-let connected = false;
-let parentOrigin = null;
-let stream = null;
-let scanning = false;
-let waitingResult = false;
-let frameId = null;
-let lastFrameAt = 0;
+  let connected = false;
+  let parentOrigin = null;
+  let stream = null;
+  let scanning = false;
+  let waitingResult = false;
+  let frameId = null;
+  let lastFrameAt = 0;
+  let framesProcessed = 0;
+  let pendingTimeout = null;
+  let readyTimer = null;
 
-const UUID_PATTERN =
-  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-
-// Collegamento con la pagina Apps Script.
-// Nessuna chiave operatore viene trasmessa.
-function announceReady() {
-  if (!window.opener) {
-    $('info').textContent =
-      'Aprire lo scanner dalla pagina di controllo accessi.';
-    return;
+  function diagnostic(message) {
+    $('diagnostic').textContent = message;
+    console.log('[QR scanner]', message);
   }
 
-  if (!connected) {
-    window.opener.postMessage({
-      app: APP,
-      type: 'READY'
-    }, '*');
-  }
-}
-
-window.addEventListener('message', event => {
-  if (event.source !== window.opener) return;
-
-  const msg = event.data;
-  if (!msg || msg.app !== APP) return;
-
-  if (msg.type === 'READY_ACK' && !connected) {
-    parentOrigin = event.origin;
-    connected = true;
-    $('startButton').disabled = false;
-    $('info').textContent =
-      'Collegato. Avvia la fotocamera.';
-    return;
+  function announceReady() {
+    if (!window.opener) {
+      $('info').textContent = 'Collegamento assente: apri lo scanner dalla pagina Apps Script.';
+      diagnostic('window.opener assente (possibile restrizione browser/iframe).');
+      return;
+    }
+    if (!connected) {
+      window.opener.postMessage({ app: APP, type: 'READY' }, '*');
+      diagnostic('READY inviato; in attesa di READY_ACK da Apps Script.');
+    }
   }
 
-  if (!connected || event.origin !== parentOrigin) {
-    return;
+  window.addEventListener('message', event => {
+    if (event.source !== window.opener) return;
+    const msg = event.data;
+    if (!msg || msg.app !== APP) return;
+    if (msg.type === 'READY_ACK' && !connected) {
+      parentOrigin = event.origin;
+      connected = true;
+      $('startButton').disabled = false;
+      $('testButton').disabled = false;
+      $('info').textContent = 'Collegato. Esegui il test oppure avvia la fotocamera.';
+      diagnostic('READY_ACK ricevuto. Canale postMessage attivo.');
+      return;
+    }
+    if (!connected || event.origin !== parentOrigin) return;
+    if (msg.type === 'RESULT' && waitingResult) {
+      waitingResult = false;
+      clearTimeout(pendingTimeout);
+      pendingTimeout = null;
+      diagnostic('Risposta backend ricevuta: ' + msg.status);
+      showResult(msg);
+    }
+  });
+
+  readyTimer = setInterval(() => { if (!connected) announceReady(); }, 1500);
+  announceReady();
+
+  function sendScan(token) {
+    if (!connected || !window.opener || !parentOrigin) {
+      diagnostic('Invio non possibile: collegamento non attivo.');
+      return false;
+    }
+    waitingResult = true;
+    $('info').textContent = 'Verifica in corso...';
+    diagnostic('SCAN inviato a Apps Script; in attesa della risposta.');
+    window.opener.postMessage({ app: APP, type: 'SCAN', token }, parentOrigin);
+    clearTimeout(pendingTimeout);
+    pendingTimeout = setTimeout(() => {
+      if (!waitingResult) return;
+      waitingResult = false;
+      diagnostic('Timeout: nessuna risposta entro 15 secondi. Non riprovare automaticamente: esito potenzialmente già registrato.');
+      showResult({ status: 'ERROR', message: 'Nessuna risposta dal server: verifica l’esito nel foglio prima di riprovare.' });
+    }, 15000);
+    return true;
   }
 
-  if (msg.type === 'RESULT' && waitingResult) {
-    waitingResult = false;
-    showResult(msg);
-  }
-});
-
-setInterval(announceReady, 1500);
-announceReady();
-
-async function startCamera() {
-  if (!connected || stream) return;
-
-  if (!navigator.mediaDevices?.getUserMedia) {
-    $('info').textContent =
-      'Fotocamera non disponibile in questo browser.';
-    return;
+  function testBackend() {
+    if (waitingResult) return;
+    scanning = false;
+    if (frameId !== null) cancelAnimationFrame(frameId);
+    $('result').style.display = 'none';
+    diagnostic('Test di comunicazione con UUID fittizio (nessun ingresso reale modificato).');
+    sendScan(TEST_TOKEN);
   }
 
-  try {
-    stream = await navigator.mediaDevices.getUserMedia({
-      audio: false,
-      video: {
-        facingMode: { ideal: 'environment' },
-        width: { ideal: 1280 },
-        height: { ideal: 720 }
+  async function startCamera() {
+    if (!connected) {
+      diagnostic('Impossibile avviare: handshake assente.');
+      return;
+    }
+    if (stream) {
+      nextTicket();
+      return;
+    }
+    if (!navigator.mediaDevices?.getUserMedia) {
+      $('info').textContent = 'Fotocamera non disponibile in questo browser.';
+      diagnostic('navigator.mediaDevices.getUserMedia non disponibile.');
+      return;
+    }
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({
+        audio: false,
+        video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 }, height: { ideal: 720 } }
+      });
+      const video = $('camera');
+      video.srcObject = stream;
+      await video.play();
+      $('startButton').style.display = 'none';
+      $('info').textContent = 'Inquadra il QR code.';
+      framesProcessed = 0;
+      lastFrameAt = 0;
+      scanning = true;
+      diagnostic('Fotocamera attiva, video ' + video.videoWidth + '×' + video.videoHeight + '.');
+      frameId = requestAnimationFrame(scanFrame);
+    } catch (error) {
+      $('info').textContent = 'Impossibile avviare la fotocamera: ' + error.message;
+      diagnostic('Errore getUserMedia: ' + error.message);
+    }
+  }
+
+  function scanFrame(time) {
+    if (!scanning || !stream) return;
+    frameId = requestAnimationFrame(scanFrame);
+    if (time - lastFrameAt < 150) return;
+    lastFrameAt = time;
+    try {
+      if (typeof jsQR !== 'function') {
+        scanning = false;
+        cancelAnimationFrame(frameId);
+        $('info').textContent = 'Libreria jsQR non caricata.';
+        diagnostic('Errore: jsQR non disponibile, controllare CDN/rete.');
+        return;
       }
-    });
-
-    const video = $('camera');
-    video.srcObject = stream;
-    await video.play();
-
-    $('startButton').style.display = 'none';
-    $('info').textContent = 'Inquadra il QR code.';
-
-    scanning = true;
-    scanFrame();
-
-  } catch (err) {
-    $('info').textContent =
-      'Impossibile avviare la fotocamera: ' +
-      err.message;
-  }
-}
-
-
-let framesProcessed = 0;
-
-function scanFrame(time = 0) {
-  if (!scanning || !stream) return;
-
-  frameId = requestAnimationFrame(scanFrame);
-
-  if (time - lastFrameAt < 150) return;
-  lastFrameAt = time;
-
-  try {
-    if (typeof jsQR !== 'function') {
+      const video = $('camera');
+      if (video.readyState < 2 || !video.videoWidth) {
+        diagnostic('Video non ancora pronto.');
+        return;
+      }
+      const canvas = $('canvas');
+      const scale = Math.min(1, 1280 / video.videoWidth);
+      canvas.width = Math.round(video.videoWidth * scale);
+      canvas.height = Math.round(video.videoHeight * scale);
+      const ctx = canvas.getContext('2d', { willReadFrequently: true });
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+      const pixels = ctx.getImageData(0, 0, canvas.width, canvas.height);
+      const qr = jsQR(pixels.data, pixels.width, pixels.height, { inversionAttempts: 'attemptBoth' });
+      framesProcessed++;
+      if (!qr) {
+        if (framesProcessed % 5 === 0) {
+          $('info').textContent = 'Ricerca QR... Fotogrammi: ' + framesProcessed;
+          diagnostic('Decodifica attiva: ' + framesProcessed + ' fotogrammi; nessun QR riconosciuto.');
+        }
+        return;
+      }
+      const token = qr.data.trim();
       scanning = false;
       cancelAnimationFrame(frameId);
-      $('info').textContent =
-        'ERRORE: libreria jsQR non caricata.';
+      diagnostic('QR decodificato. Lunghezza contenuto: ' + token.length + ' caratteri.');
+      if (!UUID_PATTERN.test(token)) {
+        $('info').textContent = 'QR letto, ma non contiene un UUID: ' + token.substring(0, 100);
+        $('nextButton').style.display = 'block';
+        return;
+      }
+      if (!sendScan(token)) {
+        $('info').textContent = 'Impossibile inviare il token al backend.';
+        $('nextButton').style.display = 'block';
+      }
+    } catch (error) {
+      scanning = false;
+      cancelAnimationFrame(frameId);
+      $('info').textContent = 'Errore scanner: ' + error.message;
+      diagnostic('Eccezione scanFrame: ' + error.message);
+    }
+  }
+
+  function showResult(data) {
+    const result = $('result');
+    result.className = data.status === 'SUCCESS' ? 'success' : data.status === 'ALREADY_USED' ? 'warning' : 'error';
+    result.style.display = 'block';
+    $('resultTitle').textContent = data.status === 'SUCCESS' ? '✓ ACCESSO AUTORIZZATO' : data.status === 'ALREADY_USED' ? '⚠ GIÀ UTILIZZATO' : '✕ VERIFICA NON RIUSCITA';
+    $('resultName').textContent = data.name || '';
+    $('resultMessage').textContent = data.message || '';
+    $('info').textContent = '';
+    $('nextButton').style.display = 'block';
+    if (data.status === 'SUCCESS' && navigator.vibrate) navigator.vibrate(120);
+  }
+
+  function nextTicket() {
+    if (waitingResult) return;
+    $('result').style.display = 'none';
+    $('nextButton').style.display = 'none';
+    if (!stream) {
+      $('info').textContent = 'Avvia nuovamente la fotocamera.';
       return;
     }
+    $('info').textContent = 'Inquadra il QR code.';
+    scanning = true;
+    lastFrameAt = 0;
+    frameId = requestAnimationFrame(scanFrame);
+  }
 
-    const video = $('camera');
-
-    if (video.readyState < 2 ||
-        !video.videoWidth) {
-      $('info').textContent =
-        'In attesa del video...';
-      return;
-    }
-
-    const canvas = $('canvas');
-    const scale = Math.min(
-      1,
-      1280 / video.videoWidth
-    );
-
-    canvas.width = Math.round(
-      video.videoWidth * scale
-    );
-    canvas.height = Math.round(
-      video.videoHeight * scale
-    );
-
-    const ctx = canvas.getContext('2d', {
-      willReadFrequently: true
-    });
-
-    ctx.drawImage(
-      video, 0, 0,
-      canvas.width, canvas.height
-    );
-
-    const img = ctx.getImageData(
-      0, 0,
-      canvas.width,
-      canvas.height
-    );
-
-    framesProcessed++;
-
-    const qr = jsQR(
-      img.data,
-      img.width,
-      img.height,
-      { inversionAttempts: 'attemptBoth' }
-    );
-
-    if (!qr) {
-      $('info').textContent =
-        'Ricerca QR... Fotogrammi: ' +
-        framesProcessed;
-      return;
-    }
-
-    const token = qr.data.trim();
-
-    console.log('QR riconosciuto:', token);
-
-    // Blocchiamo temporaneamente la scansione
-    // per mostrare anche i codici non UUID.
+  function stopCamera() {
     scanning = false;
-    cancelAnimationFrame(frameId);
-
-    if (!UUID_PATTERN.test(token)) {
-      $('info').textContent =
-        'QR letto, ma il contenuto non è un UUID: ' +
-        token.substring(0, 100);
-
-      $('nextButton').style.display = 'block';
-      return;
+    if (frameId !== null) cancelAnimationFrame(frameId);
+    frameId = null;
+    if (stream) {
+      stream.getTracks().forEach(track => track.stop());
+      stream = null;
     }
-
-    waitingResult = true;
-
-    $('info').textContent =
-      'QR riconosciuto. Verifica sul server...';
-
-    window.opener.postMessage({
-      app: APP,
-      type: 'SCAN',
-      token
-    }, parentOrigin);
-
-  } catch (error) {
-    scanning = false;
-    cancelAnimationFrame(frameId);
-
-    $('info').textContent =
-      'ERRORE SCANNER: ' + error.message;
-
-    console.error(error);
-  }
-}
-
-
-function showResult(data) {
-  const result = $('result');
-
-  result.className = '';
-  result.style.display = 'block';
-
-  if (data.status === 'SUCCESS') {
-    result.className = 'success';
-    $('resultTitle').textContent = '✓ ACCESSO AUTORIZZATO';
-
-    if (navigator.vibrate) {
-      navigator.vibrate(120);
-    }
-
-  } else if (data.status === 'ALREADY_USED') {
-    result.className = 'warning';
-    $('resultTitle').textContent = '⚠ GIÀ UTILIZZATO';
-
-  } else {
-    result.className = 'error';
-    $('resultTitle').textContent = '✕ ACCESSO NEGATO';
+    $('camera').srcObject = null;
+    $('startButton').style.display = 'block';
+    $('result').style.display = 'none';
+    $('nextButton').style.display = 'none';
+    $('info').textContent = 'Fotocamera ferma.';
+    diagnostic('Fotocamera fermata.');
   }
 
-  $('resultName').textContent = data.name || '';
-  $('resultMessage').textContent = data.message || '';
-  $('info').textContent = '';
-
-  $('nextButton').style.display = 'block';
-}
-
-function nextTicket() {
-  if (waitingResult || !stream) return;
-
-  $('result').style.display = 'none';
-  $('nextButton').style.display = 'none';
-  $('info').textContent = 'Inquadra il QR code.';
-
-  scanning = true;
-  lastFrameAt = 0;
-  scanFrame();
-}
-
-function stopCamera() {
-  scanning = false;
-  waitingResult = false;
-
-  if (frameId !== null) {
-    cancelAnimationFrame(frameId);
-  }
-
-  if (stream) {
-    stream.getTracks().forEach(track => track.stop());
-    stream = null;
-  }
-
-  $('camera').srcObject = null;
-  $('startButton').style.display = 'block';
-  $('result').style.display = 'none';
-  $('nextButton').style.display = 'none';
-  $('info').textContent = 'Fotocamera ferma.';
-}
-
-window.addEventListener('pagehide', stopCamera);
+  window.addEventListener('pagehide', () => {
+    stopCamera();
+    if (readyTimer) clearInterval(readyTimer);
+  });
 </script>
 </body>
 </html>
